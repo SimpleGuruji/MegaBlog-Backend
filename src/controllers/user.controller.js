@@ -5,9 +5,6 @@ import { ApiResponse } from "../utils/ApiResponse.js";
 
 const registerUser = asyncHandler(async (req, res) => {
   const { fullName, email, password } = req.body;
-  if ([email, fullName, password].some((field) => field?.trim() === "")) {
-    throw new ApiError(400, "All fields are required");
-  }
 
   const existedUser = await User.findOne({ email });
 
@@ -25,7 +22,14 @@ const registerUser = asyncHandler(async (req, res) => {
 
   return res
     .status(201)
-    .json(new ApiResponse(200, createdUser, "User created Successfully"));
+    .json(
+      new ApiResponse(
+        200,
+        createdUser,
+        "User created Successfully",
+        await user.generatetoken()
+      )
+    );
 });
 
 const loginUser = asyncHandler(async (req, res) => {
@@ -37,13 +41,17 @@ const loginUser = asyncHandler(async (req, res) => {
 
   const user = await User.findOne({ email });
 
-  if (user && (await user.isPasswordCorrect(password))) {
-    return res
-      .status(200)
-      .json(new ApiResponse(200, "User logged in Successfully"));
-  } else {
+  if (!user && !(await user.isPasswordCorrect(password))) {
     throw new ApiError(400, "Invalid Credentials");
   }
+
+  const jwtToken = await user.generatetoken();
+
+  res.status(200).cookie("token", jwtToken, { httpOnly: true });
+
+  res
+    .status(200)
+    .json(new ApiResponse(200, "User logged in Successfully", jwtToken));
 });
 
 export { registerUser, loginUser };
